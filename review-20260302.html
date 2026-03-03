@@ -172,7 +172,7 @@
     <h1 style="margin-bottom: 6px; font-size: 1.8em;">
         VLA Research Update
     </h1>
-    <p style="font-size: 0.55em; color: #8b949e; margin: 0 0 28px;">March 2, 2026</p>
+    <p style="font-size: 0.55em; color: #8b949e; margin: 0 0 28px;">March 3, 2026</p>
 
     <div style="max-width: 700px; margin: 0 auto; text-align: left;">
         <div style="display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px; font-size: 0.58em;"
@@ -595,17 +595,8 @@
                 <div style="flex: 1.5;">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 4px;">
                         <span style="font-size: 0.34em; color: #6e7681;">Prompt:</span>
-                        <select class="ctrl-select" id="sem-prompt-select" onchange="setSemanticPreview(currentSemType)">
-                            <option value="0">0 — pick up the black bowl on the stove and place it on the plate</option>
-                            <option value="1">1 — pick up the black bowl next to the ramekin and place it on the plate</option>
-                            <option value="2">2 — pick up the alphabet soup and place it in the basket</option>
-                            <option value="3">3 — pick up the cream cheese and place it in the basket</option>
-                            <option value="4">4 — pick up the ketchup and place it in the basket</option>
-                            <option value="5">5 — open the middle drawer of the cabinet</option>
-                            <option value="6">6 — put the bowl on the stove</option>
-                            <option value="7">7 — turn on the stove</option>
-                            <option value="8">8 — put the cream cheese in the bowl</option>
-                            <option value="9">9 — put the wine bottle on the rack</option>
+                        <select class="ctrl-select" id="sem-prompt-select" onchange="loadSemanticVideo()">
+                            <!-- Populated dynamically by JS based on selected semantic type -->
                         </select>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -757,12 +748,12 @@
                 <tr>
                     <td style="text-align: left;">Semantic understanding</td>
                     <td class="green" style="text-align:center; font-weight:700;">Strong</td>
-                    <td class="red" style="text-align:center; font-weight:700;">None</td>
+                    <td class="green" style="text-align:center; font-weight:700;">Strong</td>
                 </tr>
                 <tr>
                     <td style="text-align: left;">Semantic &rarr; action (OOD)</td>
                     <td class="orange" style="text-align:center; font-weight:700;">Hallucinate</td>
-                    <td class="red" style="text-align:center; font-weight:700;">None</td>
+                    <td class="orange" style="text-align:center; font-weight:700;">Hallucinate</td>
                 </tr>
                 <tr>
                     <td style="text-align: left;">Lighting generalization</td>
@@ -783,16 +774,18 @@
                 Pure imitation on canonical poses.
             </div>
 
-            <div class="insight-box" style="border-color: rgba(139,92,246,0.3);">
-                <strong class="purple">CosmosPolicy language:</strong>
-                The T5-XXL language encoder (11B params) appears to contribute nothing to task understanding &mdash;
-                an <strong>11B dead weight</strong> (if we didn't use it wrong).
+            <div class="insight-box" style="border-color: rgba(52,211,153,0.3);">
+                <strong class="green">T5 encoding bug (fixed):</strong>
+                Early results showed CosmosPolicy 0/10 on all semantic variants &mdash; caused by a
+                <strong>T5 tokenizer mismatch</strong> (wrong tokenizer class, bf16 instead of fp32, missing padding zeroing).
+                After fix: <strong>10/10 Structure, 9/10 Synonym &amp; Verbose</strong>. Both models are comparably strong.
             </div>
 
             <div class="insight-box" style="border-color: rgba(88,166,255,0.3);">
-                <strong class="blue">VGM action:</strong>
-                CosmosPolicy showed no OOD action generalization &mdash;
-                surprising given the video generation backbone was expected to enable more flexible behavior.
+                <strong class="blue">OOD action:</strong>
+                Neither model generalizes to truly novel instructions.
+                Pi0.5 falls back to trained behavior (6/10 &ldquo;success&rdquo; by ignoring prompt);
+                CosmosPolicy is more disrupted by novel T5 embeddings (0/10).
             </div>
         </div>
 
@@ -1628,7 +1621,7 @@
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/math/math.js"></script>
 <script>
     // ==================== Experiment Data ====================
-    const BASE = 'videos/';
+    const BASE = '../../Experiment-Results/VLA-Experiment-Factory/';
 
     // Run directories (new naming with model suffix)
     const RUNS = {
@@ -1638,6 +1631,7 @@
             synonym:   '2026-03-01_17-34-11_Synonym-Substitution_pi0',
             verbose:   '2026-03-01_17-36-15_Verbose-Natural_pi0',
             ood:       '2026-03-01_17-38-29_OOD-Instructions_pi0',
+            oodv2:     '2026-03-03_11-02-15_OOD-Instructions-v2_pi0',
             pose000:   '2026-03-01_17-40-32_Pose-Sigma-0.00_pi0',
             pose002:   '2026-03-01_17-42-36_Pose-Sigma-0.02_pi0',
             pose005:   '2026-03-01_17-44-40_Pose-Sigma-0.05_pi0',
@@ -1647,10 +1641,11 @@
         },
         cosmos: {
             baseline:  '2026-02-27_11-26-20_Baseline-LIBERO_cosmos-policy',
-            structure: '2026-02-27_11-46-25_Structure-Variants_cosmos-policy',
-            synonym:   '2026-02-27_11-49-53_Synonym-Substitution_cosmos-policy',
-            verbose:   '2026-02-27_11-53-22_Verbose-Natural_cosmos-policy',
-            ood:       '2026-02-27_11-56-58_OOD-Instructions_cosmos-policy',
+            structure: '2026-03-03_10-04-16_Structure-Variants_cosmos-policy',
+            synonym:   '2026-03-03_10-08-26_Synonym-Substitution_cosmos-policy',
+            verbose:   '2026-03-03_10-12-29_Verbose-Natural_cosmos-policy',
+            ood:       '2026-03-03_10-16-35_OOD-Instructions_cosmos-policy',
+            oodv2:     '2026-03-03_10-51-48_OOD-Instructions-v2_cosmos-policy',
             pose000:   '2026-02-27_12-53-46_Pose-Sigma-0.00_cosmos-policy',
             pose002:   '2026-02-27_12-57-28_Pose-Sigma-0.02_cosmos-policy',
             pose005:   '2026-02-27_13-01-10_Pose-Sigma-0.05_cosmos-policy',
@@ -1676,10 +1671,49 @@
     const POSE_COSMOS = [10, 9, 9, 8, 4, 3];
 
     // ==================== Semantic data ====================
-    const SEM_TYPES = ['Baseline', 'Structure', 'Synonym', 'Verbose', 'OOD'];
-    const SEM_KEYS  = ['baseline', 'structure', 'synonym', 'verbose', 'ood'];
-    const SEM_PI0    = [10, 10, 8, 10, 6]; // from README
-    const SEM_COSMOS = [10, 0, 0, 0, 0];  // from README
+    const SEM_TYPES = ['Baseline', 'Structure', 'Synonym', 'Verbose', 'OOD', 'OOD-v2'];
+    const SEM_KEYS  = ['baseline', 'structure', 'synonym', 'verbose', 'ood', 'oodv2'];
+    const SEM_PI0    = [10, 10, 8, 10, 0, 2]; // from README; OOD v1=0 per visual check
+    const SEM_COSMOS = [10, 10, 9, 9, 0, 0];  // fixed T5 encoding; OOD=0 per visual check; OOD-v2=0 per README
+
+    // Baseline prompts (shared by baseline, structure, synonym, verbose)
+    const BASELINE_PROMPTS = [
+        'pick up the black bowl on the stove and place it on the plate',
+        'pick up the black bowl next to the ramekin and place it on the plate',
+        'pick up the alphabet soup and place it in the basket',
+        'pick up the cream cheese and place it in the basket',
+        'pick up the ketchup and place it in the basket',
+        'open the middle drawer of the cabinet',
+        'put the bowl on the stove',
+        'turn on the stove',
+        'put the cream cheese in the bowl',
+        'put the wine bottle on the rack'
+    ];
+    // OOD has completely different prompts
+    const OOD_PROMPTS = [
+        'hold your arm up and stay still',
+        "close the gripper and don't let go",
+        'knock everything off the table',
+        'pick up the moon and place it in the basket',
+        'pick up the black bowl and put it back exactly where it was',
+        'clean up the kitchen',
+        'do nothing, just stay where you are',
+        'pick up the red cup and place it on the shelf',
+        'make yourself useful',
+        '\u628A\u7089\u5B50\u6253\u5F00'
+    ];
+    const OODV2_PROMPTS = [
+        'put the wine bottle on the plate',
+        'put the cream cheese on the wine rack',
+        'put the wine bottle on the stove',
+        'put the cream cheese on top of the cabinet',
+        'put the bowl inside the wine rack',
+        'put the plate in the top drawer of the cabinet',
+        'pick up the ramekin and place it on the plate',
+        'pick up the cookie box and place it on the stove',
+        'put the plate on top of the bowl',
+        'put the bowl on the cream cheese'
+    ];
 
     // ==================== Lighting data ====================
     const LIGHT_INTENSITIES = [0.00, 0.05, 0.25, 0.50, 1.00, 1.50, 2.00];
@@ -1857,14 +1891,31 @@
     }
 
     let currentSemType = 0;
-    function setSemanticPreview(typeIdx) {
-        currentSemType = typeIdx;
-        const key = SEM_KEYS[typeIdx];
+    function updateSemPromptDropdown(key) {
+        const sel = document.getElementById('sem-prompt-select');
+        if (!sel) return;
+        const prompts = key === 'ood' ? OOD_PROMPTS : key === 'oodv2' ? OODV2_PROMPTS : BASELINE_PROMPTS;
+        sel.innerHTML = '';
+        prompts.forEach((p, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i + ' \u2014 ' + p;
+            sel.appendChild(opt);
+        });
+    }
+    function loadSemanticVideo() {
+        const key = SEM_KEYS[currentSemType];
         const promptIdx = parseInt(document.getElementById('sem-prompt-select').value);
         const v0 = document.getElementById('sem-v0');
         const v1 = document.getElementById('sem-v1');
         if (v0) { v0.src = videoPath('pi0', key, promptIdx, 'frontview'); v0.load(); v0.play(); }
         if (v1) { v1.src = videoPath('cosmos', key, promptIdx, 'frontview'); v1.load(); v1.play(); }
+    }
+    function setSemanticPreview(typeIdx) {
+        currentSemType = typeIdx;
+        const key = SEM_KEYS[typeIdx];
+        updateSemPromptDropdown(key);
+        loadSemanticVideo();
         document.querySelectorAll('#sem-type-btns .ctrl-btn').forEach((b, i) => {
             b.classList.toggle('active', i === typeIdx);
         });
@@ -2076,4 +2127,3 @@
 </script>
 </body>
 </html>
-<!-- trigger deploy -->
